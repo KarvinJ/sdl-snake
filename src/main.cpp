@@ -57,8 +57,8 @@ int rand_range(int min, int max)
 //check the random position, cuz sometimes sent the food out of bounds. 
 Vector2 generateRandomPosition()
 {
-    int positionX = rand_range(0, CELL_COUNT);
-    int positionY = rand_range(0, CELL_COUNT);
+    int positionX = rand_range(0, CELL_COUNT - 1);
+    int positionY = rand_range(0, CELL_COUNT - 1);
 
     return Vector2{positionX, positionY};
 }
@@ -69,7 +69,7 @@ Vector2 vector2Add(Vector2 vector1, Vector2 vector2)
 
     return result;
 }
-
+// Check whether two given vectors are almost equal
 int vector2Equals(Vector2 vector1, Vector2 vector2)
 {
     const float EPSILON = 0.000001f;
