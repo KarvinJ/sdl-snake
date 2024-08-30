@@ -4,6 +4,7 @@
 #include <deque>
 #include <math.h>
 #include <iostream>
+#include <fstream>
 
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
@@ -12,13 +13,17 @@ Mix_Chunk *actionSound = nullptr;
 
 bool isGamePaused;
 
-int playerScore;
+int score;
+int highScore;
 
 SDL_Texture *pauseTexture = nullptr;
 SDL_Rect pauseBounds;
 
 SDL_Texture *scoreTexture = nullptr;
 SDL_Rect scoreBounds;
+
+SDL_Texture *highScoreTexture = nullptr;
+SDL_Rect highScoreBounds;
 
 TTF_Font *fontSquare = nullptr;
 
@@ -54,7 +59,7 @@ int rand_range(int min, int max)
     return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
-//check the random position, cuz sometimes sent the food out of bounds. 
+// check the random position, cuz sometimes sent the food out of bounds.
 Vector2 generateRandomPosition()
 {
     int positionX = rand_range(0, CELL_COUNT - 1);
@@ -96,13 +101,62 @@ bool eventTriggered(float deltaTime, float intervalUpdate)
     return false;
 }
 
+void saveScore()
+{
+    std::ofstream highScores("high-score.txt");
+
+    std::string scoreString = std::to_string(score);
+    highScores << scoreString;
+
+    highScores.close();
+}
+
+int loadHighScore()
+{
+    std::string highScoreText;
+
+    std::ifstream highScores("high-score.txt");
+
+    if (!highScores.is_open())
+    {
+        saveScore();
+
+        std::ifstream auxHighScores("high-score.txt");
+
+        getline(auxHighScores, highScoreText);
+
+        highScores.close();
+
+        int highScore = stoi(highScoreText);
+
+        return highScore;
+    }
+
+    getline(highScores, highScoreText);
+
+    highScores.close();
+
+    int highScore = stoi(highScoreText);
+
+    return highScore;
+}
+
 void resetSnakePosition()
 {
+    if (score > highScore)
+    {
+        saveScore();
+
+        std::string highScoreString = "High Score: " + std::to_string(score);
+
+        updateTextureText(highScoreTexture, highScoreString.c_str(), fontSquare, renderer);
+    }
+
     snake.body = {{6, 9}, {5, 9}, {4, 9}};
     snake.direction = {1, 0};
 
-    playerScore = 0;
-    updateTextureText(scoreTexture, std::to_string(playerScore).c_str(), fontSquare, renderer);
+    score = 0;
+    updateTextureText(scoreTexture, "Score: 0", fontSquare, renderer);
 }
 
 bool checkCollisionWithFood(Vector2 foodPosition)
@@ -218,9 +272,12 @@ void update(float deltaTime)
     if (food.isDestroyed)
     {
         food.position = generateRandomPosition();
-        playerScore++;
+        score++;
 
-        updateTextureText(scoreTexture, std::to_string(playerScore).c_str(), fontSquare, renderer);
+        std::string scoreString = "score: " + std::to_string(score);
+
+        updateTextureText(scoreTexture, scoreString.c_str(), fontSquare, renderer);
+
         Mix_PlayChannel(-1, actionSound, 0);
     }
 }
@@ -241,9 +298,14 @@ void render()
     }
 
     SDL_QueryTexture(scoreTexture, NULL, NULL, &scoreBounds.w, &scoreBounds.h);
-    scoreBounds.x = SCREEN_WIDTH / 2;
+    scoreBounds.x = SCREEN_WIDTH / 2 + 90;
     scoreBounds.y = scoreBounds.h / 2;
     SDL_RenderCopy(renderer, scoreTexture, NULL, &scoreBounds);
+
+    SDL_QueryTexture(highScoreTexture, NULL, NULL, &highScoreBounds.w, &highScoreBounds.h);
+    highScoreBounds.x = 50;
+    highScoreBounds.y = highScoreBounds.h / 2;
+    SDL_RenderCopy(renderer, highScoreTexture, NULL, &highScoreBounds);
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
@@ -275,19 +337,21 @@ int main(int argc, char *args[])
         return 1;
     }
 
-    // load font
-    fontSquare = TTF_OpenFont("res/fonts/square_sans_serif_7.ttf", 36);
+    fontSquare = TTF_OpenFont("res/fonts/square_sans_serif_7.ttf", 22);
 
-    // load title
     updateTextureText(pauseTexture, "Game Paused", fontSquare, renderer);
 
     SDL_QueryTexture(pauseTexture, NULL, NULL, &pauseBounds.w, &pauseBounds.h);
     pauseBounds.x = SCREEN_WIDTH / 2 - pauseBounds.w / 2;
     pauseBounds.y = 100;
-    // After I use the &pauseBounds.w, &pauseBounds.h in the SDL_QueryTexture.
-    //  I get the width and height of the actual texture
 
-    updateTextureText(scoreTexture, "0", fontSquare, renderer);
+    highScore = loadHighScore();
+
+    std::string highScoreString = "High Score: " + std::to_string(highScore);
+
+    updateTextureText(highScoreTexture, highScoreString.c_str(), fontSquare, renderer);
+
+    updateTextureText(scoreTexture, "Score: 0", fontSquare, renderer);
 
     actionSound = loadSound("res/sounds/magic.wav");
 
