@@ -2,8 +2,11 @@
 
 #include <SDL2/SDL.h>
 
-const int SCREEN_WIDTH = 960;
-const int SCREEN_HEIGHT = 544;
+const int CELL_SIZE = 23;
+const int CELL_COUNT = 23;
+
+const int SCREEN_WIDTH = CELL_SIZE * CELL_COUNT;
+const int SCREEN_HEIGHT = CELL_SIZE * CELL_COUNT;
 const int FRAME_RATE = 60;
 
 int startSDL(SDL_Window *window, SDL_Renderer *renderer);

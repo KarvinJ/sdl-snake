@@ -1,47 +1,143 @@
 #include "sdl_starter.h"
 #include "sdl_assets_loader.h"
 #include <time.h>
+#include <deque>
+#include <math.h>
+#include <iostream>
 
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
 
 Mix_Chunk *actionSound = nullptr;
-Mix_Music *music = nullptr;
-
-Sprite playerSprite;
-
-const int PLAYER_SPEED = 600;
 
 bool isGamePaused;
+
+int playerScore;
 
 SDL_Texture *pauseTexture = nullptr;
 SDL_Rect pauseBounds;
 
+SDL_Texture *scoreTexture = nullptr;
+SDL_Rect scoreBounds;
+
 TTF_Font *fontSquare = nullptr;
 
-SDL_Rect ball = {SCREEN_WIDTH / 2 + 50, SCREEN_HEIGHT / 2, 32, 32};
+typedef struct
+{
+    int x;
+    int y;
+} Vector2;
 
-int ballVelocityX = 400;
-int ballVelocityY = 400;
+typedef struct
+{
+    int cellCount;
+    int cellSize;
+    std::deque<Vector2> body;
+    Vector2 direction;
+    bool shouldAddSegment;
+} Snake;
 
-int colorIndex;
+Snake snake;
 
-SDL_Color colors[] = {
-    {128, 128, 128, 0}, // gray 
-    {255, 255, 255, 0}, // white
-    {255, 0, 0, 0},     // red
-    {0, 255, 0, 0},     // green
-    {0, 0, 255, 0},     // blue
-    {255, 255, 0, 0},   // brown
-    {0, 255, 255, 0},   // cyan
-    {255, 0, 255, 0},   // purple
-};
+typedef struct
+{
+    int cellCount;
+    int cellSize;
+    Vector2 position;
+    bool isDestroyed;
+} Food;
+
+Food food;
+
+int rand_range(int min, int max)
+{
+    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+}
+
+//check the random position, cuz sometimes sent the food out of bounds. 
+Vector2 generateRandomPosition()
+{
+    int positionX = rand_range(0, CELL_COUNT);
+    int positionY = rand_range(0, CELL_COUNT);
+
+    return Vector2{positionX, positionY};
+}
+
+Vector2 vector2Add(Vector2 vector1, Vector2 vector2)
+{
+    Vector2 result = {vector1.x + vector2.x, vector1.y + vector2.y};
+
+    return result;
+}
+
+int vector2Equals(Vector2 vector1, Vector2 vector2)
+{
+    const float EPSILON = 0.000001f;
+    int result = ((fabsf(vector1.x - vector2.x)) <= (EPSILON * fmaxf(1.0f, fmaxf(fabsf(vector1.x), fabsf(vector2.x))))) &&
+                 ((fabsf(vector1.y - vector2.y)) <= (EPSILON * fmaxf(1.0f, fmaxf(fabsf(vector1.y), fabsf(vector2.y)))));
+
+    return result;
+}
+
+double lastUpdateTime = 0;
+
+// method for control the speed that the snake has to move.
+bool eventTriggered(float deltaTime, float intervalUpdate)
+{
+    lastUpdateTime += deltaTime;
+
+    if (lastUpdateTime >= intervalUpdate)
+    {
+        lastUpdateTime = 0;
+
+        return true;
+    }
+
+    return false;
+}
+
+void resetSnakePosition()
+{
+    snake.body = {{6, 9}, {5, 9}, {4, 9}};
+    snake.direction = {1, 0};
+
+    playerScore = 0;
+    updateTextureText(scoreTexture, std::to_string(playerScore).c_str(), fontSquare, renderer);
+}
+
+bool checkCollisionWithFood(Vector2 foodPosition)
+{
+    if (vector2Equals(snake.body[0], foodPosition))
+    {
+        snake.shouldAddSegment = true;
+        return true;
+    }
+
+    return false;
+}
+
+void checkCollisionWithEdges()
+{
+    if (snake.body[0].x == CELL_COUNT || snake.body[0].x == -1 || snake.body[0].y == CELL_COUNT || snake.body[0].y == -1)
+    {
+        resetSnakePosition();
+    }
+}
+
+void checkCollisionBetweenHeadAndBody()
+{
+    for (size_t i = 1; i < snake.body.size(); i++)
+    {
+        if (vector2Equals(snake.body[0], snake.body[i]))
+        {
+            resetSnakePosition();
+        }
+    }
+}
 
 void quitGame()
 {
-    Mix_FreeMusic(music);
     Mix_FreeChunk(actionSound);
-    SDL_DestroyTexture(playerSprite.texture);
     SDL_DestroyTexture(pauseTexture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -72,59 +168,61 @@ void handleEvents()
     }
 }
 
-int rand_range(int min, int max)
-{
-    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
-}
-
 void update(float deltaTime)
 {
     const Uint8 *currentKeyStates = SDL_GetKeyboardState(NULL);
 
-    if (currentKeyStates[SDL_SCANCODE_W] && playerSprite.textureBounds.y > 0)
+    if (eventTriggered(deltaTime, 0.2))
     {
-        playerSprite.textureBounds.y -= PLAYER_SPEED * deltaTime;
+        if (!snake.shouldAddSegment)
+        {
+            // we remove the last element (The tail of the snake) and we push at the head the head + the direction
+            snake.body.pop_back();
+            snake.body.push_front(vector2Add(snake.body[0], snake.direction));
+        }
+        else
+        {
+            // its better to add the new element at the head, cuz this gives a better visual effect.
+            //  When the element is added we need to stop the snake movement, to complete the visual effect.
+            snake.body.push_front(vector2Add(snake.body[0], snake.direction));
+
+            snake.shouldAddSegment = false;
+        }
     }
 
-    else if (currentKeyStates[SDL_SCANCODE_S] && playerSprite.textureBounds.y < SCREEN_HEIGHT - playerSprite.textureBounds.h)
+    if (currentKeyStates[SDL_SCANCODE_W] && snake.direction.y != 1)
     {
-        playerSprite.textureBounds.y += PLAYER_SPEED * deltaTime;
+        snake.direction = {0, -1};
     }
 
-    else if (currentKeyStates[SDL_SCANCODE_A] && playerSprite.textureBounds.x > 0)
+    else if (currentKeyStates[SDL_SCANCODE_S] && snake.direction.y != -1)
     {
-        playerSprite.textureBounds.x -= PLAYER_SPEED * deltaTime;
+        snake.direction = {0, 1};
     }
 
-    else if (currentKeyStates[SDL_SCANCODE_D] && playerSprite.textureBounds.x < SCREEN_WIDTH - playerSprite.textureBounds.w)
+    else if (currentKeyStates[SDL_SCANCODE_A] && snake.direction.x != 1)
     {
-        playerSprite.textureBounds.x += PLAYER_SPEED * deltaTime;
+        snake.direction = {-1, 0};
     }
 
-    if (ball.x < 0 || ball.x > SCREEN_WIDTH - ball.w)
+    else if (currentKeyStates[SDL_SCANCODE_D] && snake.direction.x != -1)
     {
-        ballVelocityX *= -1;
-
-        colorIndex = rand_range(0, 5);
+        snake.direction = {1, 0};
     }
 
-    else if (ball.y < 0 || ball.y > SCREEN_HEIGHT - ball.h)
+    checkCollisionWithEdges();
+    checkCollisionBetweenHeadAndBody();
+
+    food.isDestroyed = checkCollisionWithFood(food.position);
+
+    if (food.isDestroyed)
     {
-        ballVelocityY *= -1;
+        food.position = generateRandomPosition();
+        playerScore++;
 
-        colorIndex = rand_range(0, 5);
+        updateTextureText(scoreTexture, std::to_string(playerScore).c_str(), fontSquare, renderer);
+        Mix_PlayChannel(-1, actionSound, 0);
     }
-
-    else if (SDL_HasIntersection(&playerSprite.textureBounds, &ball))
-    {
-        ballVelocityX *= -1;
-        ballVelocityY *= -1;
-
-        colorIndex = rand_range(0, 5);
-    }
-
-    ball.x += ballVelocityX * deltaTime;
-    ball.y += ballVelocityY * deltaTime;
 }
 
 void renderSprite(Sprite sprite)
@@ -142,11 +240,26 @@ void render()
         SDL_RenderCopy(renderer, pauseTexture, NULL, &pauseBounds);
     }
 
-    SDL_SetRenderDrawColor(renderer, colors[colorIndex].r, colors[colorIndex].g, colors[colorIndex].b, 255);
+    SDL_QueryTexture(scoreTexture, NULL, NULL, &scoreBounds.w, &scoreBounds.h);
+    scoreBounds.x = SCREEN_WIDTH / 2;
+    scoreBounds.y = scoreBounds.h / 2;
+    SDL_RenderCopy(renderer, scoreTexture, NULL, &scoreBounds);
 
-    SDL_RenderFillRect(renderer, &ball);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-    renderSprite(playerSprite);
+    for (size_t i = 0; i < snake.body.size(); i++)
+    {
+        int positionX = snake.body[i].x;
+        int positionY = snake.body[i].y;
+
+        SDL_Rect bodyBounds = {positionX * CELL_SIZE, positionY * CELL_SIZE, CELL_SIZE, CELL_SIZE};
+
+        SDL_RenderFillRect(renderer, &bodyBounds);
+    }
+
+    SDL_Rect foodBounds = {food.position.x * CELL_SIZE, food.position.y * CELL_SIZE, CELL_SIZE, CELL_SIZE};
+
+    SDL_RenderFillRect(renderer, &foodBounds);
 
     SDL_RenderPresent(renderer);
 }
@@ -174,25 +287,26 @@ int main(int argc, char *args[])
     // After I use the &pauseBounds.w, &pauseBounds.h in the SDL_QueryTexture.
     //  I get the width and height of the actual texture
 
-    playerSprite = loadSprite(renderer, "res/sprites/alien_1.png", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+    updateTextureText(scoreTexture, "0", fontSquare, renderer);
 
     actionSound = loadSound("res/sounds/magic.wav");
 
-    // method to reduce the volume of the sound in half.
     Mix_VolumeChunk(actionSound, MIX_MAX_VOLUME / 2);
-
-    // Load music file (only one data piece, intended for streaming)
-    music = loadMusic("res/music/music.wav");
-
-    // reduce music volume in half
-    Mix_VolumeMusic(MIX_MAX_VOLUME / 2);
-
-    // Start playing streamed music, put -1 to loop indifinitely
-    Mix_PlayMusic(music, -1);
 
     Uint32 previousFrameTime = SDL_GetTicks();
     Uint32 currentFrameTime = previousFrameTime;
     float deltaTime = 0.0f;
+
+    srand(time(NULL));
+
+    Vector2 initialFoodPosition = generateRandomPosition();
+
+    food = {CELL_COUNT, CELL_SIZE, initialFoodPosition, false};
+
+    std::deque<Vector2> initialBody = {{6, 9}, {5, 9}, {4, 9}};
+    Vector2 direction = {1, 0};
+
+    snake = {CELL_COUNT, CELL_SIZE, initialBody, direction, false};
 
     while (true)
     {
@@ -209,6 +323,6 @@ int main(int argc, char *args[])
 
         render();
 
-        // capFrameRate(currentFrameTime);
+        capFrameRate(currentFrameTime);
     }
 }
