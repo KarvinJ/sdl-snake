@@ -282,7 +282,7 @@ void update(float deltaTime)
     }
 }
 
-void renderSprite(Sprite sprite)
+void renderSprite(Sprite &sprite)
 {
     SDL_RenderCopy(renderer, sprite.texture, NULL, &sprite.textureBounds);
 }
@@ -377,6 +377,8 @@ int main(int argc, char *args[])
         currentFrameTime = SDL_GetTicks();
         deltaTime = (currentFrameTime - previousFrameTime) / 1000.0f;
         previousFrameTime = currentFrameTime;
+
+        SDL_GameControllerUpdate();
 
         handleEvents();
 
