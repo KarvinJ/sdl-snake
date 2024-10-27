@@ -2,8 +2,8 @@
 
 #include <SDL2/SDL.h>
 
-const int CELL_SIZE = 23;
-const int CELL_COUNT = 23;
+const int CELL_SIZE = 20;
+const int CELL_COUNT = 27;
 
 const int SCREEN_WIDTH = CELL_SIZE * CELL_COUNT;
 const int SCREEN_HEIGHT = CELL_SIZE * CELL_COUNT;
