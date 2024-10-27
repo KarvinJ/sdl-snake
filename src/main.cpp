@@ -54,6 +54,8 @@ typedef struct
 
 Food food;
 
+SDL_Rect foodBounds; 
+
 int rand_range(int min, int max)
 {
     return min + rand() / (RAND_MAX / (max - min + 1) + 1);
@@ -319,9 +321,14 @@ void render()
         SDL_RenderFillRect(renderer, &bodyBounds);
     }
 
-    SDL_Rect foodBounds = {food.position.x * CELL_SIZE, food.position.y * CELL_SIZE, CELL_SIZE, CELL_SIZE};
+    foodBounds = {food.position.x * CELL_SIZE, food.position.y * CELL_SIZE, CELL_SIZE, CELL_SIZE};
 
     SDL_RenderFillRect(renderer, &foodBounds);
+
+    SDL_RenderDrawLine(renderer, 0, 1, SCREEN_WIDTH, 1);
+    SDL_RenderDrawLine(renderer, 0, SCREEN_HEIGHT - 1, SCREEN_WIDTH, SCREEN_HEIGHT - 1);
+    SDL_RenderDrawLine(renderer, 0, 0, 0, SCREEN_HEIGHT);
+    SDL_RenderDrawLine(renderer, SCREEN_WIDTH - 1, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT);
 
     SDL_RenderPresent(renderer);
 }
@@ -329,7 +336,6 @@ void render()
 int main(int argc, char *args[])
 {
     window = SDL_CreateWindow("My Window", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     if (startSDL(window, renderer) > 0)
