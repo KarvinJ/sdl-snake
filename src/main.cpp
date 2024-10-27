@@ -3,7 +3,6 @@
 #include <time.h>
 #include <deque>
 #include <math.h>
-#include <iostream>
 #include <fstream>
 
 SDL_Window *window = nullptr;
