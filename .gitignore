@@ -1,4 +1,3 @@
 /bin/debug/main.exe
-/bin/debug/main.o
-/bin/debug/sdl_assets_loader.o
-/bin/debug/sdl_starter.o
+*.o
+/.vscode

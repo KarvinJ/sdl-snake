@@ -285,11 +285,6 @@ void update(float deltaTime)
     }
 }
 
-void renderSprite(Sprite &sprite)
-{
-    SDL_RenderCopy(renderer, sprite.texture, NULL, &sprite.textureBounds);
-}
-
 void render()
 {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
